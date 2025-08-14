@@ -23,7 +23,38 @@ __all__ = [
     'AdstockTransformer',
     'HillTransformer',
     'transform_non_negative_reals_distribution',
+    'compute_decay_weights',
 ]
+
+
+def compute_decay_weights(
+    alpha: backend.Tensor,
+    l_range: backend.Tensor,
+    normalize: bool = True,
+) -> backend.Tensor:
+  """Computes decay weights using geometric decay.
+
+  This function always broadcasts the lag dimension (`l_range`) to the
+  trailing axis of the output tensor.
+
+  Args:
+      alpha: The parameter for the adstock decay function.
+      l_range: A 1D tensor representing the lag range, e.g., `[w-1, w-2, ...,
+        0]`.
+      normalize: A boolean indicating whether to normalize the weights.
+
+  Returns:
+      A tensor of weights with a shape of `(*alpha.shape, len(l_range))`.
+  """
+
+  base_tensor = backend.ops.expand_dims(alpha, -1)
+  weights = base_tensor**l_range
+  if normalize:
+    normalization_factors = backend.ops.reduce_sum(
+        weights, axis=-1, keepdims=True
+    )
+    return backend.ops.divide(weights, normalization_factors)
+  return weights
 
 
 def _validate_arguments(
@@ -103,12 +134,8 @@ def _adstock(
   for i in range(window_size):
     window_list[i] = media[..., i : i + n_times_output, :]
   windowed = backend.ops.stack(window_list)
-  l_range = backend.arange(window_size - 1, -1, -1, dtype=backend.ops.float32)
-  weights = backend.ops.expand_dims(alpha, -1) ** l_range
-  normalization_factors = backend.ops.reduce_sum(
-      weights, axis=-1, keepdims=True
-  )
-  weights = backend.ops.divide(weights, normalization_factors)
+  l_range = backend.arange(window_size - 1, -1, -1, dtype=backend.float32)
+  weights = compute_decay_weights(alpha=alpha, l_range=l_range, normalize=True)
   return backend.ops.einsum('...mw,w...gtm->...gtm', weights, windowed)
 
 

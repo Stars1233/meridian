@@ -943,19 +943,26 @@ class Analyzer:
           f"Unsupported channel type for adstock decay: '{channel_type}'. "
       )
 
-    decayed_effect_prior = (
-        prior[np.newaxis, ...] ** l_range[:, np.newaxis, np.newaxis, np.newaxis]
+    decayed_effect_prior = adstock_hill.compute_decay_weights(
+        alpha=tf.convert_to_tensor(
+            prior[np.newaxis, ...], dtype=tf.float32
+        ),
+        l_range=tf.convert_to_tensor(l_range, dtype=tf.float32),
+        normalize=False,
     )
-    decayed_effect_posterior = (
-        posterior[np.newaxis, ...]
-        ** l_range[:, np.newaxis, np.newaxis, np.newaxis]
+    decayed_effect_posterior = adstock_hill.compute_decay_weights(
+        alpha=tf.convert_to_tensor(
+            posterior[np.newaxis, ...], dtype=tf.float32
+        ),
+        l_range=tf.convert_to_tensor(l_range, dtype=tf.float32),
+        normalize=False,
     )
 
     decayed_effect_prior_transpose = tf.transpose(
-        decayed_effect_prior, perm=[1, 2, 0, 3]
+        decayed_effect_prior, perm=[0, 1, 3, 2]
     )
     decayed_effect_posterior_transpose = tf.transpose(
-        decayed_effect_posterior, perm=[1, 2, 0, 3]
+        decayed_effect_posterior, perm=[0, 1, 3, 2]
     )
     adstock_dataset = _central_tendency_and_ci_by_prior_and_posterior(
         decayed_effect_prior_transpose,
@@ -2028,7 +2035,7 @@ class Analyzer:
           tf.constant(
               non_media_treatments_baseline_normalized, dtype=tf.float32
           )[tf.newaxis, tf.newaxis, :],
-          self._meridian.non_media_treatments.shape,  # pytype: disable=attribute-error
+          data_tensors.non_media_treatments.shape,  # pytype: disable=attribute-error
       )
     else:
       non_media_treatments_baseline_normalized = None
